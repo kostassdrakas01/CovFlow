@@ -1,0 +1,32 @@
+# Schrodinger Outputs
+*.maegz
+*.mae
+*.zip
+*.log
+*.csv
+*.rept
+*.txt
+!README.md
+!USER_GUIDE.txt
+
+# Scratch/Temporary Directories
+SCRATCH_*
+SCRATCH/
+tmp/
+temp/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Results and Backups
+RESULTS/
+results_backup/
+CovDockResults/
+
+# OS files
+.DS_Store
+Thumbs.db
