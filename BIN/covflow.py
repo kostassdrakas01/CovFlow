@@ -49,17 +49,23 @@ NUCLEOPHILES = {
     "THR": "OG1"
 }
 
-def run_command(cmd, log_file=None):
+def run_command(cmd, log_file=None, cwd=None):
+    if not cwd:
+        cwd = SCRATCH
     if log_file and not os.path.isabs(log_file):
-        log_file = os.path.join(SCRATCH, log_file)
+        log_file = os.path.join(cwd, log_file)
+    
     print(f"-> Executing: {' '.join(cmd)}")
     
     if log_file:
+        log_dir = os.path.dirname(log_file)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir)
         with open(log_file, "a") as f:
             f.write(f"\n--- {time.ctime()} ---\n")
             f.write(f"COMMAND: {' '.join(cmd)}\n")
 
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd=cwd)
     output_lines = []
     for line in process.stdout:
         print(line, end='', flush=True)
@@ -70,7 +76,7 @@ def run_command(cmd, log_file=None):
     process.wait()
     return process.returncode == 0, "".join(output_lines)
 
-def sanitize_protein(pdb_file, target_res_id):
+def sanitize_protein(pdb_file, target_res_id, skip_min=False):
     """
     1. Removes native ligands.
     2. Restores covalent residues.
@@ -145,12 +151,16 @@ def sanitize_protein(pdb_file, target_res_id):
         print(f"   Deleted {len(to_delete)} atoms from native ligands and restored hydrogens.")
     
     # 4. Local Minimization (Target + 5A) to restore geometry
-    try:
-        # ASL: Target residue and neighbors within 5.0 A
-        minimize_asl = f"(res.n {resnum} and chain {chain}) or (within 5.0 (res.n {resnum} and chain {chain}))"
-        minimize.minimize_structure(st, iteration=50, asl=minimize_asl)
-    except Exception as e:
-        print(f"   ⚠️ Minimization warning (skipping): {e}")
+    if not skip_min:
+        try:
+            print(f"   Executing local minimization of {target_res_id} + 5.0A...")
+            # ASL: Target residue and neighbors within 5.0 A
+            minimize_asl = f"(res.n {resnum} and chain {chain}) or (within 5.0 (res.n {resnum} and chain {chain}))"
+            minimize.minimize_structure(st, iteration=50, asl=minimize_asl)
+        except Exception as e:
+            print(f"   ⚠️ Minimization warning (skipping): {e}")
+    else:
+        print(f"   Skipping local minimization as requested (--no_min)")
     
     out_file = os.path.join(SCRATCH, "sanitized_protein.maegz")
     st.write(out_file)
@@ -190,11 +200,14 @@ def prepare_ligands_with_filter(csv_path):
     
     output_mae = os.path.join(SCRATCH, "ligands_prepped.maegz")
     output_basename = "ligands_prepped.maegz"
-    cmd = [LIGPREP, "-ismi", smi_file, "-omae", output_basename, "-ph", "7.0", "-s", "1", "-WAIT", "-LOCAL"]
-    success, _ = run_command(cmd, "ligprep.log")
+    cmd = [LIGPREP, "-ismi", os.path.abspath(smi_file), "-omae", output_basename, "-ph", "7.0", "-s", "1", "-WAIT", "-LOCAL"]
+    success, _ = run_command(cmd, "ligprep.log", cwd=SCRATCH)
     
-    if os.path.exists(output_basename):
-        shutil.move(output_basename, output_mae)
+    # Ligprep with -LOCAL will put file in the cwd (SCRATCH)
+    full_output_path = os.path.join(SCRATCH, output_basename)
+    if os.path.exists(full_output_path):
+        if full_output_path != output_mae:
+            shutil.move(full_output_path, output_mae)
     
     if success and os.path.exists(output_mae):
         # Post-process MAE to label reactive carbon (simple heuristic for acrylamides)
@@ -303,6 +316,7 @@ def main():
     parser.add_argument("--rxn", default="michael_addition", help="Reaction type")
     parser.add_argument("--dist", default="2.5", help="Distance constraint in Angstroms")
     parser.add_argument("--host", default="localhost", help="Host")
+    parser.add_argument("--no_min", action="store_true", help="Skip local minimization of target residue (use for native ligands)")
     
     global SCRATCH
     args = parser.parse_args()
@@ -315,23 +329,19 @@ def main():
 
     # Phase 1: Sanitize (Remove native ligands, restore covalent bonds)
     # This must happen BEFORE PrepWizard to remove problematic molecules that cause Lewis errors.
-    rec_sanitized, center = sanitize_protein(args.pdb, args.res)
+    rec_sanitized, center = sanitize_protein(args.pdb, args.res, skip_min=args.no_min)
     if not rec_sanitized: sys.exit(1)
     
     # Phase 2: Protein Preparation (Standard PrepWiz)
     rec_prepped_basename = "prepwizard_out.maegz"
-    cmd = [PREPWIZ, "-fillsidechains", "-minimize_adj_h", rec_sanitized, rec_prepped_basename, "-WAIT", "-LOCAL"]
-    success, _ = run_command(cmd, "prepwizard.log")
+    cmd = [PREPWIZ, "-fillsidechains", "-minimize_adj_h", os.path.abspath(rec_sanitized), rec_prepped_basename, "-WAIT", "-LOCAL"]
+    success, _ = run_command(cmd, "prepwizard.log", cwd=SCRATCH)
     
     rec_prepped = os.path.join(SCRATCH, rec_prepped_basename)
-    if os.path.exists(rec_prepped_basename):
-        shutil.move(rec_prepped_basename, rec_prepped)
         
     if not success or not os.path.exists(rec_prepped):
         print("!! PrepWizard failed to produce output. Check SCRATCH/prepwizard.log")
         sys.exit(1)
-    
-
     
     # Phase 3: Prepare Ligands + Filter
     lig_filtered = prepare_ligands_with_filter(args.csv)
@@ -376,7 +386,8 @@ def main():
         f.write(f"GRID_OPTION GRID_CENTER={center}\n")
         f.write(f"GRID_OPTION INNERBOX=10,10,10\n")
         f.write(f"GRID_OPTION OUTERBOX=30,30,30\n")
-        f.write(f"DIST_CONSTRAINT {args.dist}\n")
+        f.write(f"DIST_CONSTRAINT 4.0\n")
+        f.write(f"MAX_INIT_POSES 1000\n")
 
     
     print(f"\n[PHASE 5] Executing Final Covalent Docking (Standard Leadopt Mode)")
@@ -389,7 +400,7 @@ def main():
             
     # Reverting to 'leadopt' (thorough is not supported in this 2021 version)
     cmd = [COVDOCK, os.path.abspath(inp_file), "-mode", "leadopt", "-HOST", args.host, "-WAIT"]
-    success, _ = run_command(cmd, "covdock.log")
+    success, _ = run_command(cmd, "covdock.log", cwd=SCRATCH)
 
     if success:
         print("\n[PHASE 6] Organizing Results")
@@ -399,23 +410,24 @@ def main():
         # Schrodinger uses hyphens for output files: name-out.maegz
         patterns = [f"{job_name}-out.maegz", f"{job_name}-out.csv", f"{job_name}.csv", f"{job_name}_out.maegz", f"{job_name}_out.csv"]
         
-        for f in patterns:
-            if os.path.exists(f):
-                # 1. Copy to Dropbox
-                target_dropbox = os.path.join(PYPROJECT_RAW, f)
-                shutil.copy(f, target_dropbox)
+        for f_name in patterns:
+            f_path = os.path.join(SCRATCH, f_name)
+            if os.path.exists(f_path):
+                # 1. Copy to Results folder
+                target_results = os.path.join(PYPROJECT_RAW, f_name)
+                shutil.copy(f_path, target_results)
                 
                 # 2. Copy to DATA folder for easy analysis
-                if "-out.maegz" in f or "_out.maegz" in f:
-                    shutil.copy(f, "DATA/results.maegz")
-                elif "-out.csv" in f or "_out.csv" in f:
-                    shutil.copy(f, "DATA/results_ranking.csv")
-                elif ".rept" in f:
-                    shutil.copy(f, "DATA/results.rept")
+                if "-out.maegz" in f_name or "_out.maegz" in f_name:
+                    shutil.copy(f_path, "DATA/results.maegz")
+                elif "-out.csv" in f_name or "_out.csv" in f_name:
+                    shutil.copy(f_path, "DATA/results_ranking.csv")
+                elif ".rept" in f_name:
+                    shutil.copy(f_path, "DATA/results.rept")
                 else:
-                    shutil.copy(f, f"DATA/{f}")
+                    shutil.copy(f_path, f"DATA/{f_name}")
                     
-                print(f"   Stored result: {f} -> DATA/ and Dropbox")
+                print(f"   Stored result: {f_name} -> DATA/ and {PYPROJECT_RAW}/")
 
         print("\nWorkflow Complete! Check DATA/ and Dropbox for results.")
     else:

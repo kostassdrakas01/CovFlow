@@ -9,11 +9,11 @@ if [ ! -f "$SCHRODINGER_RUN" ]; then
 fi
 # Default arguments (can be overridden by environment variables)
 CSV_FILE=${CSV_FILE:-"DATA/ligands.csv"}
-PDB_FILE=${PDB_FILE:-"DATA/1XKK.pdb"}
+PDB_FILE=${PDB_FILE:-"DATA/7UKV.pdb"}
 TARGET_RES=${TARGET_RES:-"A:797"}
 TARGET_RESTYPE=${TARGET_RESTYPE:-"CYS"}
 RXN_TYPE=${RXN_TYPE:-"michael_addition"}
-DIST_CONSTRAINT=${DIST_CONSTRAINT:-"4.5"}
+DIST_CONSTRAINT=${DIST_CONSTRAINT:-"2.5"}
 
 # Parse arguments manually to allow overriding defaults
 while [[ "$#" -gt 0 ]]; do
@@ -25,6 +25,7 @@ while [[ "$#" -gt 0 ]]; do
         --rxn) RXN_TYPE="$2"; shift ;;
         --dist) DIST_CONSTRAINT="$2"; shift ;;
         --host) HOST="$2"; shift ;;
+        --no_min) NO_MIN="--no_min" ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -37,5 +38,6 @@ echo "Starting CovFlow..."
     --res "$TARGET_RES" \
     --restype "$TARGET_RESTYPE" \
     --rxn "$RXN_TYPE" \
-    --dist "$DIST_CONSTRAINT"
+    --dist "$DIST_CONSTRAINT" \
+    $NO_MIN
 

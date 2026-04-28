@@ -24,6 +24,12 @@ covflow --csv your_data.csv --pdb your_protein.pdb
 covflow_kin --csv your_data.csv --pdb your_protein.pdb
 ```
 
+### Rescoring/Kinetics on Existing Poses
+If you have already docked ligands and want to calculate kinetics without re-docking:
+```bash
+$SCHRODINGER/run python3 BIN/covflow_kinetics_rescore.py --results results.maegz --pdb protein.pdb --res A:797
+```
+
 **Interactive Prompts:**
 - **Reaction Type**: Type any Schrodinger reaction (e.g., `michael_addition`, `nucleophilic_substitution`).
 - **Target Residue**: Type the chain and number (e.g., `A:797`, `B:102`).
@@ -75,5 +81,11 @@ covflow run python3 ANALYSIS/master_analysis.py results.maegz --sel1 "ligand" --
 - **Water**: `res.nam HOH`
 - **Complexes**: `protein and not water`
 
+---
 
- ./covflow_run.sh --csv DATA/ligands.csv --pdb DATA/7UKV.pdb --res A:797 --restype CYS
+## 4. Workspace Maintenance
+The pipeline generates intermediate logs and temporary structures in `SCRATCH` directories. To keep your workspace clean and organized, use the provided cleanup utility:
+```bash
+./clean.sh
+```
+This will safely remove all temporary directories while keeping your core scripts and results intact.

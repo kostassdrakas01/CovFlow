@@ -25,8 +25,18 @@ PREPWIZ = os.path.join(SCHRODINGER, "utilities", "prepwizard")
 # Target project path for KineCys
 PYPROJECT_RAW = os.environ.get("COVDOCK_RESULTS", "RESULTS")
 
-def run_command(cmd, log_file=None):
+SCRATCH = "SCRATCH_kinetics"
+
+def run_command(cmd, log_file=None, cwd=None):
     """Executes a command and logs/prints output in real-time."""
+    if not cwd:
+        cwd = SCRATCH
+    if not os.path.exists(cwd):
+        os.makedirs(cwd)
+        
+    if log_file and not os.path.isabs(log_file):
+        log_file = os.path.join(cwd, log_file)
+        
     print(f"-> Executing: {' '.join(cmd)}")
     
     if log_file:
@@ -34,7 +44,7 @@ def run_command(cmd, log_file=None):
             f.write(f"\n--- {time.ctime()} ---\n")
             f.write(f"COMMAND: {' '.join(cmd)}\n")
 
-    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd=cwd)
     
     output_lines = []
     if process.stdout:
@@ -56,7 +66,8 @@ def prepare_protein(pdb_file):
     """Runs PrepWizard on a PDB file."""
     print(f"\n[PHASE 1] Protein Preparation: {os.path.basename(pdb_file)}")
     base = os.path.basename(pdb_file).split('.')[0]
-    out_mae = f"{base}_prepared.maegz"
+    out_mae_basename = f"{base}_prepared.maegz"
+    out_mae = os.path.join(SCRATCH, out_mae_basename)
     
     if os.path.exists(out_mae):
         print(f"   Found existing prepared protein: {out_mae}")
@@ -67,12 +78,12 @@ def prepare_protein(pdb_file):
         "-fillsidechains",
         "-watdist", "5.0",
         "-minimize_adj_h",
-        pdb_file,
-        out_mae,
+        os.path.abspath(pdb_file),
+        out_mae_basename,
         "-WAIT",
         "-LOCAL"
     ]
-    success, err = run_command(cmd, "prepwizard.log")
+    success, err = run_command(cmd, "prepwizard.log", cwd=SCRATCH)
     if not success:
         print(f"!! PrepWizard failed:\n{err}")
         return None
@@ -91,21 +102,22 @@ def prepare_ligands(csv_path):
         print("!! CSV must contain 'smiles' and 'name' columns.")
         return None, None
     
-    smi_file = "ligands_for_prep.smi"
+    smi_file = os.path.join(SCRATCH, "ligands_for_prep.smi")
     df[['smiles', 'name']].to_csv(smi_file, sep=' ', index=False, header=False)
     
-    output_mae = "ligands_prepped.maegz"
+    output_mae_basename = "ligands_prepped.maegz"
+    output_mae = os.path.join(SCRATCH, output_mae_basename)
     cmd = [
         LIGPREP,
-        "-ismi", smi_file,
-        "-omae", output_mae,
+        "-ismi", os.path.abspath(smi_file),
+        "-omae", output_mae_basename,
         "-ph", "7.0",
         "-s", "1", # Process 1 stereo per ligand for simplicity in automation
         "-bff", "14",
         "-WAIT",
         "-LOCAL"
     ]
-    success, err = run_command(cmd, "ligprep.log")
+    success, err = run_command(cmd, "ligprep.log", cwd=SCRATCH)
     if not success:
         print(f"!! LigPrep failed:\n{err}")
         return None, None
@@ -130,23 +142,20 @@ try:
 except Exception:
     sys.exit(1)
 """
-    with open("temp_center.py", "w") as f:
+    temp_script = os.path.join(SCRATCH, "temp_center.py")
+    with open(temp_script, "w") as f:
         f.write(py_code)
     
-    success, output = run_command([RUN, "python3", "temp_center.py"])
+    success, output = run_command([RUN, "python3", os.path.abspath(temp_script)], cwd=SCRATCH)
     return output.strip() if success else None
 
 def create_covdock_inp(job_name, rec_file, lig_file, residue, center, reaction):
     """Generates the .inp file."""
-    inp_file = f"{job_name}.inp"
-    # Map interactive choices to Schrodinger reaction keywords if needed
-    # Defaulting to user input string for flexibility
+    inp_file = os.path.join(SCRATCH, f"{job_name}.inp")
     content = f"""RXN_TYPE                  {reaction}
-REC_FILE                  {rec_file}
-LIG_FILE                  {lig_file}
+REC_FILE                  {os.path.abspath(rec_file)}
+LIG_FILE                  {os.path.abspath(lig_file)}
 ATTACHMENT_RESIDUE        {residue}
-DOCKING_MODE              leadopt
-AFFINITY                  True
 GRID_OPTION               INNERBOX=10,10,10
 GRID_OPTION               GRID_CENTER={center}
 GRID_OPTION               OUTERBOX=30,30,30
@@ -239,8 +248,8 @@ def main():
     inp_file = create_covdock_inp(job_name, rec_mae, lig_mae, residue, center, reaction)
     
     print(f"\n[PHASE 4] Executing Covalent Docking: {job_name}")
-    cmd = [COVDOCK, inp_file, "-HOST", args.host, "-WAIT"]
-    success, _ = run_command(cmd, f"{job_name}.log")
+    cmd = [COVDOCK, os.path.abspath(inp_file), "-mode", "leadopt", "-affinity", "-HOST", args.host, "-WAIT"]
+    success, _ = run_command(cmd, f"{job_name}.log", cwd=SCRATCH)
     
     if success:
         print("\n[PHASE 5] Organizing Results")
@@ -250,21 +259,22 @@ def main():
         # Schrodinger uses hyphens for output files: name-out.maegz
         patterns = [f"{job_name}-out.maegz", f"{job_name}-out.csv", f"{job_name}.csv", f"{job_name}_out.maegz", f"{job_name}_out.csv"]
         
-        for f in patterns:
-            if os.path.exists(f):
-                # 1. Copy to Dropbox
-                target_dropbox = os.path.join(PYPROJECT_RAW, f)
-                shutil.copy(f, target_dropbox)
+        for f_name in patterns:
+            f_path = os.path.join(SCRATCH, f_name)
+            if os.path.exists(f_path):
+                # 1. Copy to Results folder
+                target_results = os.path.join(PYPROJECT_RAW, f_name)
+                shutil.copy(f_path, target_results)
                 
                 # 2. Copy to DATA folder for easy analysis
-                if "-out.maegz" in f or "_out.maegz" in f:
-                    shutil.copy(f, "DATA/results_kinetics.maegz")
-                elif "-out.csv" in f or "_out.csv" in f:
-                    shutil.copy(f, "DATA/results_kinetics_ranking.csv")
+                if "-out.maegz" in f_name or "_out.maegz" in f_name:
+                    shutil.copy(f_path, "DATA/results_kinetics.maegz")
+                elif "-out.csv" in f_name or "_out.csv" in f_name:
+                    shutil.copy(f_path, "DATA/results_kinetics_ranking.csv")
                 else:
-                    shutil.copy(f, f"DATA/{f}")
+                    shutil.copy(f_path, f"DATA/{f_name}")
                     
-                print(f"   Stored result: {f} -> DATA/ and Dropbox")
+                print(f"   Stored result: {f_name} -> DATA/ and {PYPROJECT_RAW}/")
         print("\nDone. All results moved to DATA/ and KineCys project.")
     else:
         print(f"!! Docking failed. Check {job_name}.log")
