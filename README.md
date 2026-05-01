@@ -82,7 +82,7 @@ covflow run python3 ANALYSIS/master_analysis.py results.maegz --sel1 "ligand" --
 
 ---
 
-## 3. Theoretical Background: The Medicinal Chemist's Perspective
+## 3. Theoretical Background
 
 Raw **Docking Scores** can often be misleading, especially when screening large libraries. Larger molecules naturally tend to form more interactions and thus achieve "better" (more negative) scores, regardless of their actual binding quality relative to their size.
 
