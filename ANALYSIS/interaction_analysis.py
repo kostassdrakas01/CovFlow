@@ -2,7 +2,7 @@ import os
 import argparse
 import sys
 from schrodinger import structure
-from schrodinger.structutils import analyze
+from schrodinger.structutils import analyze, measure
 from schrodinger.structutils.interactions import hbond
 
 def analyze_interactions(mae_file, target_res="A:793"):
@@ -35,23 +35,43 @@ def analyze_interactions(mae_file, target_res="A:793"):
                     print(f"--- Detected Receptor Registry: {st.title} ---")
                 continue
             
-            # Calculate H-bonds between the ligand and protein within the structure
+            # 1. H-bond Analysis
             hbonds = hbond.get_hydrogen_bonds(st, atoms1=lig_indices, atoms2=prot_indices)
             
             # Find target residue atoms
             chain, resnum = target_res.split(':')
-            relevant = []
+            relevant_hbonds = []
             for hb in hbonds:
                 a1, a2 = hb[0], hb[1]
-                # Check if either atom is our target residue
                 if (a1.chain == chain and a1.resnum == int(resnum)) or \
                    (a2.chain == chain and a2.resnum == int(resnum)):
-                    relevant.append(hb)
+                    relevant_hbonds.append(hb)
 
-            if relevant:
-                print(f" {lig_name:25} | H-Bonds with {target_res}: {len(relevant)}")
+            # 2. Distance-based Analysis (Relaxed Criteria)
+            # Find ligand Nitrogens and Target O/N atoms
+            lig_n_asl = "ligand and atom.el N"
+            target_on_asl = f"(res.n {resnum} and chain {chain}) and (atom.el O,N)"
+            
+            lig_n_idx = analyze.evaluate_asl(st, lig_n_asl)
+            target_on_idx = analyze.evaluate_asl(st, target_on_asl)
+            
+            min_dist = 99.0
+            if lig_n_idx and target_on_idx:
+                # Efficient nested loop to find minimum distance
+                for i in lig_n_idx:
+                    for j in target_on_idx:
+                        dist = st.measure(i, j)
+                        if dist < min_dist:
+                            min_dist = dist
+
+            # Reporting logic: H-bond OR Distance < 3.5A
+            hbond_count = len(relevant_hbonds)
+            if hbond_count > 0 or min_dist < 3.5:
+                status = "PASS"
+                detail = f"H-bonds: {hbond_count}, MinDist: {min_dist:.2f}A"
+                print(f" {lig_name:25} | {status} | {detail}")
             else:
-                print(f" {lig_name:25} | No H-bond with {target_res}")
+                print(f" {lig_name:25} | FAIL | No H-bond and MinDist: {min_dist:.2f}A")
                 
     except Exception as e:
         print(f"!! Error processing file: {e}")

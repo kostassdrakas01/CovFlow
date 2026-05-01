@@ -50,19 +50,28 @@ CovFlow Ultra includes an automated **Sanitization Phase** to handle complex PDB
 
 ---
 
-## 3. Analyzing Results
-Use these tools on **any** `.maegz` or `.pdb` file (from this workflow or manual Maestro runs).
+### Red Flag Analysis
+Automatically check for bad bond geometry, energy strain, and convergence failures.
+```bash
+./cov_analysis.sh ANALYSIS/red_flag_filter.py DATA/results.maegz
+```
+
+### Ligand Efficiency & MedChem Filtering (New)
+Calculate Ligand Efficiency (LE) and apply medicinal chemistry filters (MW, flexibility).
+```bash
+./cov_analysis.sh ANALYSIS/ligand_efficiency.py DATA/results.maegz --mw 560 --penalty 0.1
+```
 
 ### Interaction Analysis (H-Bonds)
 Check if ligands bind to the hinge (Met793) or any other residue.
 ```bash
-covflow run python3 ANALYSIS/interaction_analysis.py results.maegz --res A:793
+./cov_analysis.sh ANALYSIS/interaction_analysis.py DATA/results_7ukw.maegz --res A:793
 ```
 
 ### Strain Analysis (Torsion)
 Check the geometric strain of the acrylamide warhead.
 ```bash
-covflow run python3 ANALYSIS/strain_analysis.py results.maegz
+./cov_analysis.sh ANALYSIS/strain_analysis.py results.maegz
 ```
 
 ### Master Analysis (Custom ASL)
@@ -73,7 +82,28 @@ covflow run python3 ANALYSIS/master_analysis.py results.maegz --sel1 "ligand" --
 
 ---
 
-## ASL Selection Cheat Sheet
+## 3. Theoretical Background: The Medicinal Chemist's Perspective
+
+Raw **Docking Scores** can often be misleading, especially when screening large libraries. Larger molecules naturally tend to form more interactions and thus achieve "better" (more negative) scores, regardless of their actual binding quality relative to their size.
+
+### The Problem: Size Bias
+A very large molecule (e.g., MW > 600) might have a score of -10.0, while a smaller, highly optimized lead (e.g., MW 350) might score -7.0. In raw ranking, the large molecule wins, but in the lab, the smaller one is often a better starting point for drug development.
+
+### The Solution: Ligand Efficiency (LE)
+To "ground" your results in reality, CovFlow calculates **Ligand Efficiency (LE)**:
+>[!IMPORTANT]
+> **Ligand Efficiency (LE) = Docking Score / Number of Heavy Atoms**
+
+By dividing the score by the number of atoms, we identify molecules that provide the "most bang for their buck." A molecule like **Osimertinib** is often more efficient than larger inhibitors, even if the larger ones have a higher absolute score.
+
+### Refining the Ranking
+To further prioritize drug-like leads, CovFlow applies:
+1.  **MW Filtering ($< 560 \text{ Da}$)**: Ensures the molecule stays within the range of standard oral drugs.
+2.  **Flexibility Penalty**: High flexibility (many rotatable bonds) is entropically unfavorable. CovFlow adds a penalty to the score for each rotatable bond to prioritize rigid, pre-organized binders.
+
+---
+
+## 4. ASL Selection Cheat Sheet
 - **Chain**: `chain A`
 - **Residue**: `res.num 797`
 - **Specific Atom**: `res.pt A:797 and atom.name SG`
