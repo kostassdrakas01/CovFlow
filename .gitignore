@@ -9,10 +9,14 @@
 !README.md
 !USER_GUIDE.txt
 
-# Input Data & Structures (Excluded from GitHub)
+# Input Data & Structures
 *.pdb
 DATA/*.csv
 DATA/*.pdb
+
+# Allow specific example data and results folder
+!DATA/6JXT.pdb
+!RESULTS/
 
 # Scratch/Temporary Directories
 SCRATCH_*
@@ -29,7 +33,8 @@ venv/
 .env
 
 # Results and Backups
-RESULTS/
+# We allow the folder but ignore large files inside
+# RESULTS/ is already un-ignored above
 results_backup/
 CovDockResults/
 
