@@ -12,7 +12,10 @@ Welcome to your organized CovFlow workspace.
 ---
 
 ## 1. Running New Projects
-You can run this workflow on **any** protein and **any** covalent docking reaction.
+You can run this workflow on **any** protein and **any** covalent docking reaction. No external virtual environment (venv) is required, as the pipeline runs directly via the Schrödinger environment.
+
+> [!NOTE]
+> Always run the scripts using the provided wrappers or via `$SCHRODINGER/run python3` to ensure all chemical libraries are correctly loaded.
 
 ### Standard Docking (Fast Ranking)
 ```bash
