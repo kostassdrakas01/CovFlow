@@ -21,7 +21,7 @@ covflow --csv your_data.csv --pdb your_protein.pdb
 
 ### Kinetics Docking (K_i and k_inact)
 ```bash
-covflow_kin --csv your_data.csv --pdb your_protein.pdb
+covflow_kin --csv your_data.csv --pdb your_protein.pdb --soften 0.85
 ```
 
 ### Rescoring/Kinetics on Existing Poses
@@ -42,7 +42,8 @@ CovFlow Ultra includes an automated **Sanitization Phase** to handle complex PDB
 ### HET Groups & Native Ligands
 - **Automatic Removal**: The pipeline automatically detects and removes all non-standard HET groups and cofactors from the PDB to prevent clashes.
 - **Site Healing**: If your target residue already has a covalent bond to a ligand, CovFlow will break the bond and "heal" the pocket via local minimization before docking.
-- **Manual Site Selection**: The docking site is strictly defined by the `--res` argument. It does *not* automatically dock where the native ligand was unless you specify that residue.
+- **Hydrated Docking**: Crystal waters within 5.0 Å of the site are **preserved** to maintain critical H-bond networks.
+- **Softening (Water Displacement)**: Use `--soften 0.85` to allow large ligands to displace pocket waters by scaling receptor VdW radii.
 
 ### Multiple Chains
 - **Full Support**: You can target any residue on any chain (e.g., `--res B:123`).

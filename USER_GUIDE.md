@@ -53,6 +53,7 @@ Every execution of `covflow_run.sh` follows these precise steps to ensure scient
     - Breaks any existing covalent bonds (e.g., from native inhibitors).
     - Deletes all non-standard residues and cofactors (except those defined in `COFACTORS`).
     - **Intelligent Grid Centering**: Automatically identifies the native ligand in the pocket and calculates its centroid to define the grid center. This ensures full coverage of the binding pocket (e.g., ATP-pocket in kinases) rather than just a residue-centered box.
+    - **Hydrated Docking**: All crystal waters within $5.0 \text{\AA}$ of the reaction site are **preserved** and optimized. This maintains critical H-bond networks (e.g., water-mediated hinge binding) that are often lost in "dry" docking workflows.
 2.  **Protein Preparation**:
     - Runs `PrepWizard` with `-fillsidechains` and `-samplewater`.
     - Automatically executes **ProtAssign** and **Epik** to optimize the protonation state of the target residue (Cys, Ser, Lys, etc.).
@@ -122,7 +123,12 @@ For many PDB structures (like EGFR 7UKV), standard side-chain minimization can c
 - **Use `--no_min`** when you need to preserve the native pocket geometry (e.g., cross-docking or benchmarking).
 - **Default (Minimization)**: Good for induced-fit scenarios where the pocket needs to "heal" after a native ligand is removed.
 
-### C. Grid Sensitivity
+### C. Handling Displaceable Waters (`--soften`)
+If you are docking large ligands that you believe should **displace** a pocket water, use the `--soften` flag:
+- **`--soften 0.85`**: Reduces the receptor's Van der Waals radii to 85%. This allows ligands to overlap slightly with waters/sidechains during docking.
+- **Minimization**: The subsequent Prime minimization step will then resolve the clash by moving the water or the ligand to the most energetically favorable hydrated state.
+
+### D. Grid Sensitivity
 If the nucleophile is found to be far from the native pocket center ($> 4.0\text{\AA}$), the script automatically expands the docking **INNERBOX** to ensure the entire pocket is reachable by the ligand.
 
 - **`DATA/`** : Place input CSVs (must have `smiles` and `name`) and protein PDBs here.

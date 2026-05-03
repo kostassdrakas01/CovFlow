@@ -404,6 +404,7 @@ def main():
     parser.add_argument("--dist", default="2.5", help="Distance constraint in Angstroms")
     parser.add_argument("--host", default="localhost", help="Host")
     parser.add_argument("--no_min", action="store_true", help="Skip local minimization of target residue (use for native ligands)")
+    parser.add_argument("--soften", type=float, default=1.0, help="Receptor VdW scaling factor (e.g., 0.8 to allow water displacement)")
     
     global SCRATCH
     args = parser.parse_args()
@@ -427,7 +428,7 @@ def main():
     # Phase 2: Protein Preparation (Standard PrepWiz)
     rec_prepped_basename = "prepwizard_out.maegz"
     # Note: protassign and epik are run by default. Removed -propassign and -epik as they are not valid flags in this version.
-    cmd = [PREPWIZ, "-fillsidechains", "-samplewater", "-minimize_adj_h", os.path.abspath(rec_sanitized), rec_prepped_basename, "-WAIT", "-LOCAL"]
+    cmd = [PREPWIZ, "-fillsidechains", "-watdist", "5.0", "-samplewater", "-minimize_adj_h", os.path.abspath(rec_sanitized), rec_prepped_basename, "-WAIT", "-LOCAL"]
     success, _ = run_command(cmd, "prepwizard.log", cwd=SCRATCH)
     
     rec_prepped = os.path.join(SCRATCH, rec_prepped_basename)
@@ -487,6 +488,9 @@ def main():
         f.write(f"GRID_OPTION GRID_CENTER={center}\n")
         f.write(f"GRID_OPTION INNERBOX=10,10,10\n")
         f.write(f"GRID_OPTION OUTERBOX=30,30,30\n")
+        if args.soften != 1.0:
+            f.write(f"GRID_OPTION RECEPTOR_VSR={args.soften}\n")
+            print(f"   [SOFTENING] Applying Receptor VdW Scaling: {args.soften}")
         f.write(f"DIST_CONSTRAINT 4.0\n")
         f.write(f"MAX_INIT_POSES 1000\n")
 

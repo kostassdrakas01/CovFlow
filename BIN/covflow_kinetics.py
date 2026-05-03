@@ -149,7 +149,7 @@ except Exception:
     success, output = run_command([RUN, "python3", os.path.abspath(temp_script)], cwd=SCRATCH)
     return output.strip() if success else None
 
-def create_covdock_inp(job_name, rec_file, lig_file, residue, center, reaction):
+def create_covdock_inp(job_name, rec_file, lig_file, residue, center, reaction, soften=1.0):
     """Generates the .inp file."""
     inp_file = os.path.join(SCRATCH, f"{job_name}.inp")
     content = f"""RXN_TYPE                  {reaction}
@@ -159,7 +159,11 @@ ATTACHMENT_RESIDUE        {residue}
 GRID_OPTION               INNERBOX=10,10,10
 GRID_OPTION               GRID_CENTER={center}
 GRID_OPTION               OUTERBOX=30,30,30
-INIT_GSCORE_CUTOFF        2.5
+"""
+    if soften != 1.0:
+        content += f"GRID_OPTION               RECEPTOR_VSR={soften}\n"
+    
+    content += f"""INIT_GSCORE_CUTOFF        2.5
 MAX_INIT_POSES            200
 OUTPUT_TOP                10
 NPOSES                    1
@@ -173,6 +177,7 @@ def main():
     parser.add_argument("--csv", required=True, help="Input CSV (smiles, name)")
     parser.add_argument("--pdb", required=True, help="PDB file of the protein")
     parser.add_argument("--host", default="localhost", help="Schrodinger host (e.g., localhost:10)")
+    parser.add_argument("--soften", type=float, default=1.0, help="Receptor VdW scaling factor (e.g., 0.8 to allow water displacement)")
     
     args = parser.parse_args()
     
@@ -245,7 +250,7 @@ def main():
     # 4. Execution Phase
     batch_name = "batch_prod"
     job_name = f"covflow_{os.path.basename(args.pdb).split('.')[0]}_{residue.replace(':','_')}"
-    inp_file = create_covdock_inp(job_name, rec_mae, lig_mae, residue, center, reaction)
+    inp_file = create_covdock_inp(job_name, rec_mae, lig_mae, residue, center, reaction, soften=args.soften)
     
     print(f"\n[PHASE 4] Executing Covalent Docking: {job_name}")
     cmd = [COVDOCK, os.path.abspath(inp_file), "-mode", "leadopt", "-affinity", "-HOST", args.host, "-WAIT"]
