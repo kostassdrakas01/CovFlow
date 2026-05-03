@@ -16,10 +16,6 @@ CovFlow Ultra is an automated pipeline for high-fidelity covalent docking and bi
 ./covflow_run.sh --csv DATA/ligands.csv --pdb DATA/1XKK.pdb --res A:797 --restype CYS --no_min
 ```
 
-**Kinetics Docking (Estimated Affinity/Ki/kinact)**
-```bash
-./covflow_kinetics_run.sh --csv DATA/ligands.csv --pdb DATA/1XKK.pdb --res A:797 --restype CYS
-```
 
 ### B. Analysis Commands
 

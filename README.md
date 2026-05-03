@@ -16,12 +16,7 @@ You can run this workflow on **any** protein and **any** covalent docking reacti
 
 ### Standard Docking (Fast Ranking)
 ```bash
-covflow --csv your_data.csv --pdb your_protein.pdb --res A:797
-```
-
-### Kinetics Docking (K_i and k_inact)
-```bash
-covflow_kin --csv your_data.csv --pdb your_protein.pdb --res A:797 --soften 0.85
+covflow --csv your_data.csv --pdb your_protein.pdb --res A:797 --soften 0.85 
 ```
 
 **Common Options:**
@@ -31,11 +26,6 @@ covflow_kin --csv your_data.csv --pdb your_protein.pdb --res A:797 --soften 0.85
 - `--soften [0.85]`: (Optional) Scales receptor VdW radii to allow water displacement.
 - `--no_min`: (Optional) Skips side-chain minimization to preserve native pocket.
 
-### Rescoring/Kinetics on Existing Poses
-If you have already docked ligands and want to calculate kinetics without re-docking:
-```bash
-$SCHRODINGER/run python3 BIN/covflow_kinetics_rescore.py --results results.maegz --pdb protein.pdb --res A:797
-```
 
 **Interactive Prompts:**
 - **Reaction Type**: Type any Schrodinger reaction (e.g., `michael_addition`, `nucleophilic_substitution`).
