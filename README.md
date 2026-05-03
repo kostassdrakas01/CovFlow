@@ -16,7 +16,7 @@ You can run this workflow on **any** protein and **any** covalent docking reacti
 
 ### Standard Docking (Fast Ranking)
 ```bash
-covflow --csv your_data.csv --pdb your_protein.pdb
+covflow --csv your_data.csv --pdb your_protein.pdb --soften 0.85
 ```
 
 ### Kinetics Docking (K_i and k_inact)
