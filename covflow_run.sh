@@ -1,7 +1,9 @@
 #!/bin/bash
 # CovFlow Ultra Wrapper Script
+# --- CONFIGURATION (Update these paths for new computers) ---
 SCHRODINGER_RUN="/home/konstantinos/Documents/schrodinger2021-2.2/run"
 SCRIPT_PATH="/home/konstantinos/Documents/CovFlow/BIN/covflow.py"
+# ----------------------------------------------------------
 
 if [ ! -f "$SCHRODINGER_RUN" ]; then
     echo "Error: Schrödinger run utility not found at $SCHRODINGER_RUN"

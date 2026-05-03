@@ -11,6 +11,20 @@ Welcome to your organized CovFlow workspace.
 
 ---
 
+## 🛠️ Setup & Portability
+If you are moving this workflow to a new computer, you only need to update **two paths** in the `covflow_run.sh` file:
+
+1.  **`SCHRODINGER_RUN`**: The path to your Schrödinger `run` utility (e.g., `/opt/schrodinger/2021-2/run`).
+2.  **`SCRIPT_PATH`**: The absolute path to where you saved `BIN/covflow.py`.
+
+```bash
+# Example edit in covflow_run.sh:
+SCHRODINGER_RUN="/your/path/to/schrodinger/run"
+SCRIPT_PATH="/your/path/to/CovFlow/BIN/covflow.py"
+```
+
+---
+
 ## 1. Running New Projects
 You can run this workflow on **any** protein and **any** covalent docking reaction. No external virtual environment (venv) is required, as the pipeline runs directly via the Schrödinger environment.
 
