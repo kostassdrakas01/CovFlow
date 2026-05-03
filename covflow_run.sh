@@ -26,6 +26,7 @@ while [[ "$#" -gt 0 ]]; do
         --dist) DIST_CONSTRAINT="$2"; shift ;;
         --host) HOST="$2"; shift ;;
         --no_min) NO_MIN="--no_min" ;;
+        --soften) SOFTEN="--soften $2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -39,5 +40,6 @@ echo "Starting CovFlow..."
     --restype "$TARGET_RESTYPE" \
     --rxn "$RXN_TYPE" \
     --dist "$DIST_CONSTRAINT" \
-    $NO_MIN
+    $NO_MIN \
+    $SOFTEN
 

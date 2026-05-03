@@ -19,7 +19,7 @@ You can run this workflow on **any** protein and **any** covalent docking reacti
 
 ### Standard Docking (Fast Ranking)
 ```bash
-covflow --csv your_data.csv --pdb your_protein.pdb --res A:797 --soften 0.85 
+./covflow_run.sh --csv your_data.csv --pdb your_protein.pdb --res A:797 --soften 0.85 
 ```
 
 **Common Options:**
