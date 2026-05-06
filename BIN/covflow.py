@@ -76,11 +76,11 @@ def run_command(cmd, log_file=None, cwd=None):
     process.wait()
     return process.returncode == 0, "".join(output_lines)
 
-def sanitize_protein(pdb_file, target_res_id, skip_min=False):
+def sanitize_protein(pdb_file, target_res_id, skip_min=False, center_res=None):
     """
     1. Removes native ligands.
     2. Restores covalent residues.
-    3. Calculates grid center based on native ligand centroid (if present) or nucleophile.
+    3. Calculates grid center based on specific residues provided by the user.
     """
     print(f"\n[NEW PHASE] Sanitizing Protein & Restoring Bonds")
     # Use StructureReader for better tolerance of problematic PDBs
@@ -115,42 +115,61 @@ def sanitize_protein(pdb_file, target_res_id, skip_min=False):
 
     if bonds_broken:
         print(f"   Broken bonds detected. Locally minimizing target residue to restore native state.")
-    
-    # 3. Native Ligand Identification (for Grid Centering)
-    # Identify non-standard residues within 10A of the target residue
-    native_ligand_atoms = []
-    for res in st.residue:
-        res_name = res.pdbres.strip()
-        if res_name not in COFACTORS and res_name not in STANDARD_RESIDUES:
-            # Check if this residue is near the target
-            res_atoms = [st.atom[i] for i in res.getAtomIndices()]
-            res_coords = np.mean([a.xyz for a in res_atoms], axis=0)
-            target_coords = np.mean([a.xyz for a in target_atom_objs], axis=0)
-            if np.linalg.norm(res_coords - target_coords) < 15.0:
-                native_ligand_atoms.extend(res.getAtomIndices())
-                print(f"   Found potential native ligand: {res_name} ({res.resnum})")
-                break # Take the first one found near the pocket
 
-    if native_ligand_atoms:
-        coords = [st.atom[i].xyz for i in native_ligand_atoms]
+    # 3. Grid Centering based on Key Residue Numbers
+    # Default is EGFR (790=Gatekeeper, 793=Hinge, 797=Covalent)
+    if center_res:
+        centering_res_ids = [r.strip() for r in center_res.split(',')]
+    else:
+        centering_res_ids = ["790", "793", "797"]
+    
+    centering_atoms = []
+    
+    print(f"   Calculating grid center based on centroid of residues: {', '.join(centering_res_ids)} (Chain {chain})")
+    
+    for rid in centering_res_ids:
+        res_atoms = [a for a in st.atom if a.chain == chain and str(a.resnum) == rid]
+        if res_atoms:
+            centering_atoms.extend(res_atoms)
+            print(f"   -> Found residue {chain}:{rid} ({res_atoms[0].pdbres.strip()})")
+    
+    if centering_atoms:
+        coords = [a.xyz for a in centering_atoms]
         centroid = np.mean(coords, axis=0)
         center = f"{centroid[0]:.3f},{centroid[1]:.3f},{centroid[2]:.3f}"
-        print(f"   Grid Center (Native Ligand Centroid): {center}")
+        print(f"   Grid Center (Residue Centroid): {center}")
     else:
-        # Fallback to the Nucleophile (e.g., Cys SG)
-        nuc_atom_name = NUCLEOPHILES.get(target_res.pdbres.strip(), "SG")
-        nuc_atom_list = [a for a in target_atom_objs if a.pdbname.strip() == nuc_atom_name]
-        
-        if nuc_atom_list:
-            center_coords = nuc_atom_list[0].xyz
-            center = f"{center_coords[0]:.3f},{center_coords[1]:.3f},{center_coords[2]:.3f}"
-            print(f"   Grid Center (Nucleophile): {center}")
-        else:
-            # Emergency Fallback to geometric center of residue
-            coords = [a.xyz for a in target_atom_objs]
+        # Fallback to native ligand identification (previous default)
+        print("   ⚠️ Warning: Centering residues not found. Falling back to native ligand identification.")
+        native_ligand_atoms = []
+        for res in st.residue:
+            res_name = res.pdbres.strip()
+            if res_name not in COFACTORS and res_name not in STANDARD_RESIDUES:
+                res_atoms = [st.atom[i] for i in res.getAtomIndices()]
+                res_coords = np.mean([a.xyz for a in res_atoms], axis=0)
+                target_coords = np.mean([a.xyz for a in target_atom_objs], axis=0)
+                if np.linalg.norm(res_coords - target_coords) < 15.0:
+                    native_ligand_atoms.extend(res.getAtomIndices())
+                    break
+
+        if native_ligand_atoms:
+            coords = [st.atom[i].xyz for i in native_ligand_atoms]
             centroid = np.mean(coords, axis=0)
             center = f"{centroid[0]:.3f},{centroid[1]:.3f},{centroid[2]:.3f}"
-            print(f"   Grid Center (Residue Centroid): {center}")
+            print(f"   Grid Center (Native Ligand Centroid): {center}")
+        else:
+            # Emergency Fallback to the Nucleophile (e.g., Cys SG)
+            nuc_atom_name = NUCLEOPHILES.get(target_res.pdbres.strip(), "SG")
+            nuc_atom_list = [a for a in target_atom_objs if a.pdbname.strip() == nuc_atom_name]
+            if nuc_atom_list:
+                center_coords = nuc_atom_list[0].xyz
+                center = f"{center_coords[0]:.3f},{center_coords[1]:.3f},{center_coords[2]:.3f}"
+            else:
+                coords = [a.xyz for a in target_atom_objs]
+                centroid = np.mean(coords, axis=0)
+                center = f"{centroid[0]:.3f},{centroid[1]:.3f},{centroid[2]:.3f}"
+            print(f"   Grid Center (Fallback): {center}")
+
 
     # Remove all native ligands/cofactors to avoid clashes
     to_delete = []
@@ -185,7 +204,8 @@ def sanitize_protein(pdb_file, target_res_id, skip_min=False):
 def prepare_ligands_with_filter(csv_path, grid_center=None):
     """LigPrep + Warhead Filtering + Reactive Atom Labeling."""
     print(f"\n[NEW PHASE] Warhead-Aware Ligand Preparation")
-    df = pd.read_csv(csv_path)
+    df = pd.read_csv(csv_path, skipinitialspace=True)
+    df.columns = df.columns.str.strip()
     detector = WarheadDetector()
     
     valid_smiles = []
@@ -210,20 +230,19 @@ def prepare_ligands_with_filter(csv_path, grid_center=None):
 
     # Run LigPrep on valid ligands
     smi_file = os.path.join(SCRATCH, "filtered_ligands.smi")
+    output_mae = os.path.join(SCRATCH, "ligands_prepped.maegz")
+    
+    # Explicitly clean old files to prevent residue from previous runs
+    for f in [smi_file, output_mae]:
+        if os.path.exists(f):
+            os.remove(f)
+            
     with open(smi_file, "w") as f:
         for s, n in zip(valid_smiles, valid_names):
             f.write(f"{s} {n}\n")
     
-    output_mae = os.path.join(SCRATCH, "ligands_prepped.maegz")
-    output_basename = "ligands_prepped.maegz"
-    cmd = [LIGPREP, "-ismi", os.path.abspath(smi_file), "-omae", output_basename, "-ph", "7.0", "-s", "1", "-WAIT", "-LOCAL"]
+    cmd = [LIGPREP, "-ismi", os.path.abspath(smi_file), "-omae", "ligands_prepped.maegz", "-ph", "7.0", "-s", "1", "-WAIT", "-LOCAL"]
     success, _ = run_command(cmd, "ligprep.log", cwd=SCRATCH)
-    
-    # Ligprep with -LOCAL will put file in the cwd (SCRATCH)
-    full_output_path = os.path.join(SCRATCH, output_basename)
-    if os.path.exists(full_output_path):
-        if full_output_path != output_mae:
-            shutil.move(full_output_path, output_mae)
     
     if success and os.path.exists(output_mae):
         # Post-process MAE to label reactive carbon
@@ -299,7 +318,7 @@ def run_alanine_scan(rec_mae, lig_mae, center, target_res_id):
         f.write(f"RECEPTOR_FILE {out_mutant}\n")
         f.write(f"GRID_CENTER {center}\n")
         f.write(f"INNERBOX 10, 10, 10\n")
-        f.write(f"OUTERBOX 30, 30, 30\n")
+        f.write(f"OUTERBOX 35, 35, 35\n")
     
     run_command([os.path.join(SCHRODINGER, "glide"), grid_inp, "-WAIT", "-LOCAL"], "gridgen.log")
     
@@ -378,10 +397,9 @@ def generate_affinity_grid(rec_prepped_mae, center, target_res_id):
     with open(grid_in_file, "w") as f:
         f.write("GRID_CENTER    {:.3f}, {:.3f}, {:.3f}\n".format(cx, cy, cz))
         f.write("INNERBOX       10, 10, 10\n")
-        f.write("OUTERBOX       30, 30, 30\n")
-        f.write("RECEPTOR       {}\n".format(os.path.abspath(rec_prepped_mae)))
+        f.write("OUTERBOX       35, 35, 35\n")
+        f.write("RECEP_FILE     {}\n".format(os.path.abspath(rec_prepped_mae)))
         f.write("GRIDFILE       {}\n".format(os.path.abspath(grid_zip_file)))
-        f.write("AFFINITY_GRID  True\n")  # Critical: enable affinity potential generation
     
     # Run Glide to generate grid (use basename since glide runs in SCRATCH directory)
     cmd = [GLIDE, f"{grid_name}.in", "-WAIT"]
@@ -405,6 +423,7 @@ def main():
     parser.add_argument("--host", default="localhost", help="Host")
     parser.add_argument("--no_min", action="store_true", help="Skip local minimization of target residue (use for native ligands)")
     parser.add_argument("--soften", type=float, default=1.0, help="Receptor VdW scaling factor (e.g., 0.8 to allow water displacement)")
+    parser.add_argument("--center_res", help="Comma-separated residue numbers for grid centering (default: 790,793,797)")
     
     global SCRATCH
     args = parser.parse_args()
@@ -422,7 +441,7 @@ def main():
 
     # Phase 1: Sanitize (Remove native ligands, restore covalent bonds)
     # This must happen BEFORE PrepWizard to remove problematic molecules that cause Lewis errors.
-    rec_sanitized, center = sanitize_protein(args.pdb, args.res, skip_min=args.no_min)
+    rec_sanitized, center = sanitize_protein(args.pdb, args.res, skip_min=args.no_min, center_res=args.center_res)
     if not rec_sanitized: sys.exit(1)
     
     # Phase 2: Protein Preparation (Standard PrepWiz)
@@ -466,11 +485,6 @@ def main():
     job_name = "covdock_final"
     inp_file = os.path.join(SCRATCH, f"{job_name}.inp")
     
-    # Phase 4B: Generate Affinity Grid for Glide Scoring
-    affinity_grid = generate_affinity_grid(rec_prepped, center, args.res)
-    if not affinity_grid:
-        print("!! Warning: Affinity grid generation failed. Proceeding with geometry-only scoring.")
-    
     # Custom Robust Michael Addition SMARTS
     # Ligand: Michael acceptor beta carbon
     lig_smarts = "[C:1]=[C:2]-[C:3]=[O,S:4]"
@@ -483,28 +497,31 @@ def main():
         f.write(f"LIG_FILE {os.path.abspath(lig_production)}\n")
         f.write(f"ATTACHMENT_RESIDUE {args.res}\n")
         # Add affinity grid if successfully generated
-        if affinity_grid and os.path.exists(affinity_grid):
-            f.write(f"AFFINITY_GRID  {os.path.abspath(affinity_grid)}\n")
+        # f.write(f"GRIDFILE  {os.path.abspath(affinity_grid)}\n")
         f.write(f"GRID_OPTION GRID_CENTER={center}\n")
         f.write(f"GRID_OPTION INNERBOX=10,10,10\n")
-        f.write(f"GRID_OPTION OUTERBOX=30,30,30\n")
+        f.write(f"GRID_OPTION OUTERBOX=35,35,35\n")
         if args.soften != 1.0:
-            f.write(f"GRID_OPTION RECEPTOR_VSR={args.soften}\n")
+            f.write(f"GRID_OPTION RECEP_VSCALE={args.soften}\n")
             print(f"   [SOFTENING] Applying Receptor VdW Scaling: {args.soften}")
-        f.write(f"DIST_CONSTRAINT 4.0\n")
         f.write(f"MAX_INIT_POSES 1000\n")
 
     
-    print(f"\n[PHASE 5] Executing Final Covalent Docking (Standard Leadopt Mode + Affinity Scoring)")
-
+    print(f"\n[PHASE 5] Executing Final Covalent Docking (Leadopt Mode)")
     
     # Pre-clean stale outputs to prevent false successes if docking fails silently
+    # We must check the SCRATCH directory explicitly
     stale_patterns = [f"{job_name}-out.maegz", f"{job_name}-out.csv", f"{job_name}.csv", f"{job_name}_out.maegz", f"{job_name}_out.csv"]
     for f in stale_patterns:
-        if os.path.exists(f):
-            os.remove(f)
+        f_path = os.path.join(SCRATCH, f)
+        if os.path.exists(f_path):
+            os.remove(f_path)
+    
+    # Also clean the DATA/results.maegz if it exists to avoid confusion
+    if os.path.exists("DATA/results.maegz"):
+        os.remove("DATA/results.maegz")
             
-    # Reverting to 'leadopt' (thorough is not supported in this 2021 version)
+    # Using 'leadopt' mode as requested (includes Prime-based complex refinement)
     cmd = [COVDOCK, os.path.abspath(inp_file), "-mode", "leadopt", "-HOST", args.host, "-WAIT"]
     success, _ = run_command(cmd, "covdock.log", cwd=SCRATCH)
 
@@ -534,28 +551,6 @@ def main():
                     shutil.copy(f_path, f"DATA/{f_name}")
                     
                 print(f"   Stored result: {f_name} -> DATA/ and {PYPROJECT_RAW}/")
-
-        # [PHASE 7] Red Flag Analysis
-        print("\n[PHASE 7] Running Post-Docking Red Flag Analysis")
-        results_file = "DATA/results.maegz"
-        if os.path.exists(results_file):
-            analysis_script = os.path.join(os.path.dirname(__file__), "..", "ANALYSIS", "red_flag_filter.py")
-            cmd = [RUN, "python3", os.path.abspath(analysis_script), results_file]
-            run_command(cmd, "red_flag_analysis.log", cwd=SCRATCH)
-
-        # [PHASE 8] MedChem & Ligand Efficiency Analysis
-        print("\n[PHASE 8] Running MedChem & Ligand Efficiency Analysis")
-        if os.path.exists(results_file):
-            le_script = os.path.join(os.path.dirname(__file__), "..", "ANALYSIS", "ligand_efficiency.py")
-            output_csv = "DATA/medchem_analysis.csv"
-            cmd = [RUN, "python3", os.path.abspath(le_script), results_file, "--output", output_csv]
-            run_command(cmd, "medchem_analysis.log", cwd=SCRATCH)
-            
-            # Copy CSV to results folder as well
-            if os.path.exists(os.path.join(SCRATCH, output_csv)):
-                shutil.copy(os.path.join(SCRATCH, output_csv), os.path.join(PYPROJECT_RAW, "medchem_analysis.csv"))
-            elif os.path.exists(output_csv): # If it was written to current dir
-                shutil.copy(output_csv, os.path.join(PYPROJECT_RAW, "medchem_analysis.csv"))
 
         print("\nWorkflow Complete! Check DATA/ and Results for results.")
     else:

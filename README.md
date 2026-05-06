@@ -33,7 +33,7 @@ You can run this workflow on **any** protein and **any** covalent docking reacti
 
 ### Standard Docking (Fast Ranking)
 ```bash
-./covflow_run.sh --csv your_data.csv --pdb your_protein.pdb --res A:797 --soften 0.85 
+./covflow_run.sh --csv DATA/ligands.csv --pdb DATA/1XKK.pdb --res A:797 --soften 0.85
 ```
 
 **Common Options:**
@@ -42,6 +42,7 @@ You can run this workflow on **any** protein and **any** covalent docking reacti
 - `--res`: Target residue (e.g., `A:797`).
 - `--soften [0.85]`: (Optional) Scales receptor VdW radii to allow water displacement.
 - `--no_min`: (Optional) Skips side-chain minimization to preserve native pocket.
+- `--center_res [790,793,797]`: (Optional) Comma-separated residue numbers for grid centering. Use this if your protein has different numbering or you want to center on different residues.
 
 
 **Interactive Prompts:**
