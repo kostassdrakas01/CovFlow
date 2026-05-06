@@ -8,6 +8,7 @@
 *.txt
 !README.md
 !USER_GUIDE.txt
+!ligands.csv
 
 # Input Data & Structures
 *.pdb

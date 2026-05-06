@@ -1,0 +1,15 @@
+smiles, name
+CN(C)CCN(C)c1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC)cc1NC(=O)C=C, Osimertinib
+CNCCN(C)c1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC)cc1NC(=O)C=C,    AZ5104
+CN(C)CCN(C)c1cc(Nc2nccc(-c3cn(C(C)C)c4ccccc34)n2)c(OC)cc1NC(=O)C=C, Aumolertinib
+CN(C)CCN(C)c1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OCC(F)(F)F)cc1NC(=O)C=C, Furmonertinib
+CN(C)CCN(C)c1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC(C)C)cc1NC(=O)C=C, Befotertinib
+CN(C)C/C=C/C(=O)Nc1cc2c(cc1OC)ncnc2Nc3ccc(F)c(Cl)c3,    YK029a
+CN(C)CC=CC(=O)Nc1cc(OC)c(cc1N2CCOCC2)Nc3nccc(n3)c4cn(C)c5ccccc45,   lazertinib
+CN(C)CC=CC(=O)Nc1cc(OC)c(cc1N2CCN(C)CC2)Nc3nccc(n3)c4cn(C)c5ccccc45,    oritinib
+CN(C)CCN(C)c1cc(Nc2nccc(-c3cn(C)c4ccccc34)n2)c(OC)cc1NC(=O)C=C, limertinib
+CN(C)C/C=C/C(=O)Nc1cc2c(cc1OC)ncnc2Nc3cc(Cl)c(F)cc3,    Canertinib
+CN(C)C/C=C/C(=O)Nc1cc2c(cc1O[C@H]3CCOC3)ncnc2Nc4ccc(F)c(Cl)c4,  Afatinib
+CN1CCN(CC1)c2cc(Nc3nccc(n3)c4cn5ccccc5n4)c(OC)cc2NC(=O)C=C, BDTX-1535
+CN(C)C/C=C/C(=O)Nc1ccc2c(c1)c(nc(n2)Nc3ccc(cc3Cl)OCc4cccc(n4)F)C#N, Neratinib
+CN(C)CC=CC(=O)Nc1cc(OC)c(cc1N2CCOCC2)Nc3nccc(n3)c4cn(C)c5ccccc45,   LN2057
