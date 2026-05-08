@@ -30,6 +30,9 @@ while [[ "$#" -gt 0 ]]; do
         --no_min) NO_MIN="--no_min" ;;
         --soften) SOFTEN="--soften $2"; shift ;;
         --center_res) CENTER_RES="--center_res $2"; shift ;;
+        --ph) PH="--ph $2"; shift ;;
+        --ph_tol) PH_TOL="--ph_tol $2"; shift ;;
+        --max_states) MAX_STATES="--max_states $2"; shift ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -43,5 +46,5 @@ echo "Starting CovFlow..."
     --restype "$TARGET_RESTYPE" \
     --rxn "$RXN_TYPE" \
     --dist "$DIST_CONSTRAINT" \
-    $NO_MIN $SOFTEN $CENTER_RES
+    $NO_MIN $SOFTEN $CENTER_RES $PH $PH_TOL $MAX_STATES
 

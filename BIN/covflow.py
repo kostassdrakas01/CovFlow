@@ -201,7 +201,7 @@ def sanitize_protein(pdb_file, target_res_id, skip_min=False, center_res=None):
     st.write(out_file)
     return out_file, center
 
-def prepare_ligands_with_filter(csv_path, grid_center=None):
+def prepare_ligands_with_filter(csv_path, grid_center=None, ph=7.0, ph_tol=2.0, max_states=1):
     """LigPrep + Warhead Filtering + Reactive Atom Labeling."""
     print(f"\n[NEW PHASE] Warhead-Aware Ligand Preparation")
     df = pd.read_csv(csv_path, skipinitialspace=True)
@@ -241,7 +241,16 @@ def prepare_ligands_with_filter(csv_path, grid_center=None):
         for s, n in zip(valid_smiles, valid_names):
             f.write(f"{s} {n}\n")
     
-    cmd = [LIGPREP, "-ismi", os.path.abspath(smi_file), "-omae", "ligands_prepped.maegz", "-ph", "7.0", "-s", "1", "-WAIT", "-LOCAL"]
+    cmd = [
+        LIGPREP, 
+        "-ismi", os.path.abspath(smi_file), 
+        "-omae", "ligands_prepped.maegz", 
+        "-ph", str(ph), 
+        "-pht", str(ph_tol),
+        "-s", str(max_states), 
+        "-epik", 
+        "-WAIT", "-LOCAL"
+    ]
     success, _ = run_command(cmd, "ligprep.log", cwd=SCRATCH)
     
     if success and os.path.exists(output_mae):
@@ -424,6 +433,9 @@ def main():
     parser.add_argument("--no_min", action="store_true", help="Skip local minimization of target residue (use for native ligands)")
     parser.add_argument("--soften", type=float, default=1.0, help="Receptor VdW scaling factor (e.g., 0.8 to allow water displacement)")
     parser.add_argument("--center_res", help="Comma-separated residue numbers for grid centering (default: 790,793,797)")
+    parser.add_argument("--ph", type=float, default=7.0, help="Target pH for ligand preparation (default: 7.0)")
+    parser.add_argument("--ph_tol", type=float, default=2.0, help="pH tolerance for ligand preparation (default: 2.0)")
+    parser.add_argument("--max_states", type=int, default=1, help="Max number of states/tautomers per ligand (default: 1)")
     
     global SCRATCH
     args = parser.parse_args()
@@ -444,10 +456,22 @@ def main():
     rec_sanitized, center = sanitize_protein(args.pdb, args.res, skip_min=args.no_min, center_res=args.center_res)
     if not rec_sanitized: sys.exit(1)
     
-    # Phase 2: Protein Preparation (Standard PrepWiz)
+    # Phase 2: Protein Preparation (Scientific Standard)
     rec_prepped_basename = "prepwizard_out.maegz"
-    # Note: protassign and epik are run by default. Removed -propassign and -epik as they are not valid flags in this version.
-    cmd = [PREPWIZ, "-fillsidechains", "-watdist", "5.0", "-samplewater", "-minimize_adj_h", os.path.abspath(rec_sanitized), rec_prepped_basename, "-WAIT", "-LOCAL"]
+    # Re-enabling protassign and epik for protein state optimization
+    cmd = [
+        PREPWIZ, 
+        "-fillsidechains", 
+        "-watdist", "5.0", 
+        "-samplewater", 
+        "-minimize_adj_h",
+        "-protassign",
+        "-prop_epik",
+        "-ph", str(args.ph),
+        os.path.abspath(rec_sanitized), 
+        rec_prepped_basename, 
+        "-WAIT", "-LOCAL"
+    ]
     success, _ = run_command(cmd, "prepwizard.log", cwd=SCRATCH)
     
     rec_prepped = os.path.join(SCRATCH, rec_prepped_basename)
@@ -457,7 +481,13 @@ def main():
         sys.exit(1)
     
     # Phase 3: Prepare Ligands + Filter
-    lig_filtered = prepare_ligands_with_filter(args.csv, grid_center=center)
+    lig_filtered = prepare_ligands_with_filter(
+        args.csv, 
+        grid_center=center, 
+        ph=args.ph, 
+        ph_tol=args.ph_tol, 
+        max_states=args.max_states
+    )
     if not lig_filtered: sys.exit(1)
     
     # Phase 4: Alanine Scan Filter (REMOVED)
