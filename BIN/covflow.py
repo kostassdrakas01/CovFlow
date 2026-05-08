@@ -201,6 +201,50 @@ def sanitize_protein(pdb_file, target_res_id, skip_min=False, center_res=None):
     st.write(out_file)
     return out_file, center
 
+def prepare_nucleophile(rec_mae, target_res_id, restype):
+    """
+    Ensures the nucleophile is ready for reaction:
+    1. Deletes hydrogens from the nucleophilic atom.
+    2. Sets appropriate formal charges for reactivity.
+    """
+    print(f"   [AUDIT] Preparing nucleophile {target_res_id} ({restype}) for reaction...")
+    st = structure.Structure.read(rec_mae)
+    chain, resnum = target_res_id.split(':')
+    
+    # Find target atoms
+    nuc_atom_name = NUCLEOPHILES.get(restype, "SG")
+    target_atoms = [a for a in st.atom if a.chain == chain and str(a.resnum) == resnum and a.pdbname.strip() == nuc_atom_name]
+    
+    if not target_atoms:
+        print(f"   ⚠️ Warning: Could not find nucleophilic atom {nuc_atom_name} in {target_res_id}")
+        return rec_mae
+
+    nuc_atom = target_atoms[0]
+    
+    # 1. Delete all hydrogens attached to the nucleophilic atom
+    h_atoms = []
+    for bond in nuc_atom.bond:
+        neighbor = bond.atom2
+        if neighbor.element == 'H':
+            h_atoms.append(neighbor.index)
+    
+    if h_atoms:
+        st.deleteAtoms(h_atoms)
+        print(f"   Deleted {len(h_atoms)} hydrogen(s) from {nuc_atom_name}")
+
+    # 2. Set formal charge to -1 for S/O nucleophiles (CYS, SER, TYR, THR)
+    # For LYS, we ensure it's neutral (charge 0)
+    if restype in ["CYS", "SER", "TYR", "THR"]:
+        nuc_atom.formal_charge = -1
+        print(f"   Set formal charge of {nuc_atom_name} to -1 (Anionic state)")
+    elif restype == "LYS":
+        nuc_atom.formal_charge = 0
+        print(f"   Ensured {nuc_atom_name} is neutral for LYS reaction")
+
+    out_file = rec_mae.replace(".maegz", "_nuc.maegz")
+    st.write(out_file)
+    return out_file
+
 def prepare_ligands_with_filter(csv_path, grid_center=None, ph=7.0, ph_tol=2.0, max_states=1):
     """LigPrep + Warhead Filtering + Reactive Atom Labeling."""
     print(f"\n[NEW PHASE] Warhead-Aware Ligand Preparation")
@@ -473,11 +517,15 @@ def main():
     ]
     success, _ = run_command(cmd, "prepwizard.log", cwd=SCRATCH)
     
-    rec_prepped = os.path.join(SCRATCH, rec_prepped_basename)
+    rec_prepped_raw = os.path.join(SCRATCH, rec_prepped_basename)
         
-    if not success or not os.path.exists(rec_prepped):
+    if not success or not os.path.exists(rec_prepped_raw):
         print("!! PrepWizard failed to produce output. Check SCRATCH/prepwizard.log")
         sys.exit(1)
+
+    # Phase 2B: Nucleophile Audit (Scientific Preparation)
+    # This ensures the target residue is in its reactive (often anionic) state.
+    rec_prepped = prepare_nucleophile(rec_prepped_raw, args.res, args.restype)
     
     # Phase 3: Prepare Ligands + Filter
     lig_filtered = prepare_ligands_with_filter(
