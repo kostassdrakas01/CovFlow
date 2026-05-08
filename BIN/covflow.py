@@ -478,6 +478,10 @@ def main():
     if not success or not os.path.exists(rec_prepped):
         print("!! PrepWizard failed to produce output. Check SCRATCH/prepwizard.log")
         sys.exit(1)
+
+    # Phase 2B: Generate Affinity Grid
+    # This provides the 'Covalent Affinity' score which is more accurate than raw docking score.
+    affinity_grid = generate_affinity_grid(rec_prepped, center, args.res)
     
     # Phase 3: Prepare Ligands + Filter
     lig_filtered = prepare_ligands_with_filter(
@@ -525,8 +529,8 @@ def main():
         f.write(f"REC_FILE {os.path.abspath(rec_prepped)}\n")
         f.write(f"LIG_FILE {os.path.abspath(lig_production)}\n")
         f.write(f"ATTACHMENT_RESIDUE {args.res}\n")
-        # Add affinity grid if successfully generated
-        # f.write(f"GRIDFILE  {os.path.abspath(affinity_grid)}\n")
+        if affinity_grid:
+            f.write(f"GRIDFILE  {os.path.abspath(affinity_grid)}\n")
         f.write(f"GRID_OPTION GRID_CENTER={center}\n")
         f.write(f"GRID_OPTION INNERBOX=10,10,10\n")
         f.write(f"GRID_OPTION OUTERBOX=35,35,35\n")
