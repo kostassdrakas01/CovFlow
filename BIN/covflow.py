@@ -458,16 +458,15 @@ def main():
     
     # Phase 2: Protein Preparation (Scientific Standard)
     rec_prepped_basename = "prepwizard_out.maegz"
-    # Re-enabling protassign and epik for protein state optimization
+    # Using specific flags for ProtAssign (via minimize_adj_h) and PROPKA/Epik pH
     cmd = [
         PREPWIZ, 
         "-fillsidechains", 
         "-watdist", "5.0", 
         "-samplewater", 
         "-minimize_adj_h",
-        "-protassign",
-        "-prop_epik",
-        "-ph", str(args.ph),
+        "-propka_pH", str(args.ph),
+        "-epik_pH", str(args.ph),
         os.path.abspath(rec_sanitized), 
         rec_prepped_basename, 
         "-WAIT", "-LOCAL"
